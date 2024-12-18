@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { scheduleNotification } from './services/notifications';
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -8,14 +9,15 @@ export default function Settings() {
     const [sessionLength, setSessionLength] = useState('5');
     const [increment, setIncrement] = useState('1');
     const [endTime, setEndTime] = useState(new Date());
-    const [showTimePicker, setShowTimePicker] = useState(false);
     const [originalEndTime, setOriginalEndTime] = useState(new Date());
     const [originalSessionLength, setOriginalSessionLength] = useState('5');
     const [originalIncrement, setOriginalIncrement] = useState('1');
 
-    useEffect(() => {
-        loadSettings();
-    }, []);
+    useFocusEffect(
+        React.useCallback(() => {
+            loadSettings();
+        }, [])
+    );
 
     const loadSettings = async () => {
         try {
@@ -35,6 +37,7 @@ export default function Settings() {
                 setEndTime(parsedEndTime);
                 setOriginalEndTime(parsedEndTime);
             }
+            console.log('Settings loaded successfully');
         } catch (error) {
             console.error('Error loading settings:', error);
         }
@@ -48,9 +51,9 @@ export default function Settings() {
             setOriginalSessionLength(sessionLength);
             setOriginalIncrement(increment);
             setOriginalEndTime(endTime);
-            
+
             // Schedule notification with new end time
-            const notificationTime = await scheduleNotification(endTime);
+            const notificationTime = await scheduleNotification(sessionLength, endTime);
             alert(`Settings saved successfully! Next notification scheduled for ${notificationTime.toLocaleTimeString()}`);
         } catch (error) {
             console.error('Error saving settings:', error);

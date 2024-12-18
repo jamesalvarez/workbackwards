@@ -23,13 +23,13 @@ export const hasScheduledNotifications = async () => {
     return notifications.length > 0;
 };
 
-export const scheduleNotification = async (endTime) => {
+export const scheduleNotification = async (sessionLength, endTime) => {
     // Cancel existing notifications
     await Notifications.cancelAllScheduledNotificationsAsync();
 
-    // Calculate the start time (5 minutes before end time)
+    // Calculate startTime by subtracting sessionLength from endTime
     const startTime = new Date(endTime);
-    startTime.setMinutes(startTime.getMinutes() - 5);
+    startTime.setMinutes(startTime.getMinutes() - sessionLength);
 
     // Schedule start notification
     await Notifications.scheduleNotificationAsync({
@@ -39,7 +39,7 @@ export const scheduleNotification = async (endTime) => {
             data: { type: 'start' }
         },
         trigger: {
-            type: SchedulableTriggerInputTypes.DAILY_INTERVAL,
+            type: SchedulableTriggerInputTypes.DAILY,
             hour: startTime.getHours(),
             minute: startTime.getMinutes(),
             repeats: true,
@@ -54,7 +54,7 @@ export const scheduleNotification = async (endTime) => {
             data: { type: 'end', screen: 'index' }
         },
         trigger: {
-            type: SchedulableTriggerInputTypes.DAILY_INTERVAL,
+            type: SchedulableTriggerInputTypes.DAILY,
             hour: endTime.getHours(),
             minute: endTime.getMinutes(),
             repeats: true,

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Alert, TextInput } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from 'expo-router';
 import {
     requestNotificationPermissions,
     scheduleNotification,
@@ -25,10 +26,6 @@ export default function Index() {
     const [showTimePicker, setShowTimePicker] = useState(false);
     const [countdown, setCountdown] = useState('');
     const [streak, setStreak] = useState(0);
-    const [nextSessionLength, setNextSessionLength] = useState(5);
-
-    const [sessionActive, setSessionActive] = useState(false);
-    const [sessionEndTime, setSessionEndTime] = useState(null);
 
     const loadSettings = async () => {
         try {
@@ -52,6 +49,8 @@ export default function Index() {
             if (savedStreak !== null) {
                 setStreak(parseInt(savedStreak));
             }
+
+            console.log('Loaded settings:', savedSessionLength, savedIncrement, savedEndTime, savedStreak);
         } catch (error) {
             console.error('Error loading settings:', error);
         }
@@ -60,15 +59,17 @@ export default function Index() {
 
 
 
-    useEffect(() => {
-        const initialize = async () => {
-            await requestNotificationPermissions();
-            await loadSettings();
-            await determineSessionState();
-        };
+    useFocusEffect(
+        React.useCallback(() => {
+            const initialize = async () => {
+                await requestNotificationPermissions();
+                await loadSettings();
+                await determineSessionState();
+            };
 
-        initialize();
-    }, []);
+            initialize();
+        }, [])
+    );
 
     const determineSessionState = async () => {
         const now = new Date();
@@ -117,21 +118,26 @@ export default function Index() {
         const timer = setInterval(() => {
             const now = new Date();
 
-            if (sessionActive && sessionEndTime) {
+            // First determine whether we are waiting for the next session or in a session from the time
+            const sessionStartTime = new Date(endTime);
+            sessionStartTime.setMinutes(sessionStartTime.getMinutes() - sessionLength);
+
+
+            const inSession = (now >= sessionStartTime && now <= endTime);
+
+            if (inSession) {
                 // Session countdown
-                const diff = sessionEndTime - now;
-                if (diff <= 0) {
-                    setSessionActive(false);
-                    setSessionEndTime(null);
-                    return;
-                }
+                const diff = endTime - now;
                 const minutes = Math.floor(diff / (1000 * 60));
                 const seconds = Math.floor((diff % (1000 * 60)) / 1000);
                 setCountdown(`${minutes}m ${seconds}s remaining`);
+
+
+
             } else {
                 // Next notification countdown
                 const notificationTime = new Date(endTime);
-                notificationTime.setMinutes(notificationTime.getMinutes() - 5);
+                notificationTime.setMinutes(notificationTime.getMinutes() - sessionLength);
 
                 if (now > notificationTime) {
                     // If current time is past notification time, calculate for next day
@@ -144,14 +150,17 @@ export default function Index() {
                 const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
                 setCountdown(`${hours}h ${minutes}m ${seconds}s until next session`);
+
             }
+
+            determineSessionState();
         }, 1000);
 
         return () => clearInterval(timer);
-    }, [endTime, sessionActive, sessionEndTime]);
+    }, [endTime]);
 
     const handleStart = async () => {
-        await scheduleNotification(endTime);
+        await scheduleNotification(sessionLength, endTime);
         await determineSessionState();
     };
 
@@ -171,7 +180,6 @@ export default function Index() {
                         >
                             <Text style={styles.buttonText}>Start Daily Sessions</Text>
                         </TouchableOpacity>
-                        <Text style={styles.streakText}>Current Streak: {streak} days</Text>
                     </>
                 );
 
@@ -179,7 +187,7 @@ export default function Index() {
                 return (
                     <>
                         <Text style={styles.countdownText}>Next session in: {countdown}</Text>
-                        <Text style={styles.sessionText}>Next session length: {nextSessionLength} minutes</Text>
+                        <Text style={styles.sessionText}>Next session length: {sessionLength} minutes</Text>
                         <Text style={styles.streakText}>Current Streak: {streak} days</Text>
                         <TouchableOpacity
                             style={[styles.button, styles.stopButton]}
