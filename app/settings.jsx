@@ -4,26 +4,33 @@ import { useFocusEffect } from 'expo-router';
 import { scheduleNotification } from '../services/notifications';
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import {SessionState} from "./index";
 
 export default function Settings() {
     const {
+        sessionState, setSessionState,
         sessionLength, setSessionLength,
         increment, setIncrement,
         endTimeHour, setEndTimeHour,
         endTimeMinute, setEndTimeMinute
     } = useSessionStore()
 
-    const [originalEndTimeHour, setOriginalEndTimeHour] = useState(endTimeHour);
-    const [originalEndTimeMinute, setOriginalEndTimeMinute] = useState(endTimeMinute);
-    const [originalSessionLength, setOriginalSessionLength] = useState(sessionLength.toString());
-    const [originalIncrement, setOriginalIncrement] = useState(increment.toString());
+    const [localSessionLength, setLocalSessionLength] = useState(sessionLength?.toString() || '5');
+    const [localIncrement, setLocalIncrement] = useState(increment?.toString() || '1');
+    const [localEndTimeHour, setLocalEndTimeHour] = useState(endTimeHour);
+    const [localEndTimeMinute, setLocalEndTimeMinute] = useState(endTimeMinute);
+
+
+    const resetLocalState = () => {
+        setLocalSessionLength(sessionLength?.toString() || '5');
+        setLocalIncrement(increment?.toString() || '1');
+        setLocalEndTimeHour(endTimeHour);
+        setLocalEndTimeMinute(endTimeMinute);
+    }
 
     useFocusEffect(
         React.useCallback(() => {
-            setOriginalSessionLength(sessionLength);
-            setOriginalIncrement(increment);
-            setOriginalEndTimeHour(endTimeHour);
-            setOriginalEndTimeMinute(endTimeMinute);
+            resetLocalState();
         }, [])
     );
 
@@ -31,13 +38,18 @@ export default function Settings() {
 
     const handleSave = async () => {
         try {
-            setOriginalSessionLength(sessionLength);
-            setOriginalIncrement(increment);
-            setOriginalEndTimeHour(endTimeHour);
-            setOriginalEndTimeMinute(endTimeMinute);
+            const newSessionLength = parseInt(localSessionLength) || 5;
+            const newIncrement = parseInt(localIncrement) || 1;
+
+            setSessionLength(newSessionLength);
+            setIncrement(newIncrement);
+            setEndTimeHour(localEndTimeHour);
+            setEndTimeMinute(localEndTimeMinute);
+            setSessionState(SessionState.WAITING);
 
             // Schedule notification with new end time
-            const notificationTime = await scheduleNotification(sessionLength, endTimeHour, endTimeMinute);
+            const notificationTime = await scheduleNotification(newSessionLength, localEndTimeHour, localEndTimeMinute);
+
             alert(`Settings saved successfully! Next notification scheduled for ${notificationTime.toLocaleTimeString()}`);
         } catch (error) {
             console.error('Error saving settings:', error);
@@ -46,10 +58,7 @@ export default function Settings() {
     };
 
     const handleCancel = () => {
-        setSessionLength(originalSessionLength);
-        setIncrement(originalIncrement);
-        setEndTimeHour(originalEndTimeHour);
-        setEndTimeMinute(originalEndTimeMinute);
+        resetLocalState();
     };
 
     return (
@@ -62,16 +71,20 @@ export default function Settings() {
                 <TextInput
                     style={styles.input}
                     keyboardType="numeric"
-                    value={sessionLength}
-                    onChangeText={setSessionLength}
+                    value={localSessionLength}
+                    onChangeText={(text) => {
+                        setLocalSessionLength(text);
+                    }}
                 />
 
                 <Text style={styles.label}>Daily Increment (minutes)</Text>
                 <TextInput
                     style={styles.input}
                     keyboardType="numeric"
-                    value={increment}
-                    onChangeText={setIncrement}
+                    value={localIncrement}
+                    onChangeText={(text) => {
+                        setLocalIncrement(text);
+                    }}
                 />
 
             </View>
@@ -80,16 +93,15 @@ export default function Settings() {
                 <Text style={styles.sectionTitle}>End Time Settings</Text>
                 <Text style={styles.label}>Daily End Time</Text>
                 <DateTimePicker
-                    value={new Date(new Date().setHours(endTimeHour, endTimeMinute))}
+                    value={new Date(new Date().setHours(localEndTimeHour || endTimeHour, localEndTimeMinute || endTimeMinute))}
                     mode="time"
                     is24Hour={true}
                     display="spinner"
                     onChange={(event, selectedTime) => {
                         if (selectedTime) {
-                            setEndTimeHour(selectedTime.getHours());
-                            setEndTimeMinute(selectedTime.getMinutes());
-
-                            console.log('Setting end times to:', selectedTime.getHours(), selectedTime.getMinutes());
+                            setLocalEndTimeHour(selectedTime.getHours());
+                            setLocalEndTimeMinute(selectedTime.getMinutes());
+                            console.log('Setting local end times to:', selectedTime.getHours(), selectedTime.getMinutes());
                         }
                     }}
                 />

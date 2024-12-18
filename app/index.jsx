@@ -11,7 +11,7 @@ import {
     cancelNotifications
 } from '../services/notifications';
 
-const SessionState = {
+export const SessionState = {
     NOT_RUNNING: 'NOT_RUNNING',
     WAITING: 'WAITING',
     IN_SESSION: 'IN_SESSION',
@@ -58,34 +58,24 @@ export default function Index() {
 
     const determineSessionState = async () => {
         try {
-            console.log('Determining session state: ', sessionState);
             const now = new Date();
             const { sessionStartTime, endTime } = getTodaysStartAndEndTime();
 
-            console.log('Current time:', now.toLocaleTimeString());
-            console.log('Session start time:', sessionStartTime.toLocaleTimeString());
-            console.log('Session end time:', endTime.toLocaleTimeString());
-
-            // If we're past today's end time, reset to WAITING for tomorrow
-            if (now > endTime && sessionState !== SessionState.NOT_RUNNING) {
-                console.log('Past end time, resetting to WAITING');
-                setSessionState(SessionState.WAITING);
-                return;
-            }
+            console.log('Now:', now, 'Session start:', sessionStartTime, 'End:', endTime, 'Session state:', sessionState);
 
             switch (sessionState) {
                 case SessionState.NOT_RUNNING:
                     break;
                 case SessionState.WAITING:
                     if (now >= sessionStartTime && now <= endTime) {
-                        console.log('Setting session state to IN_SESSION');
                         setSessionState(SessionState.IN_SESSION);
                     }
                     break;
                 case SessionState.IN_SESSION:
                     if (now > endTime) {
-                        console.log('Setting session state to POST_SESSION');
                         setSessionState(SessionState.POST_SESSION);
+                    } else if (now < sessionStartTime) {
+                        setSessionState(SessionState.WAITING);
                     }
                     break;
                 case SessionState.POST_SESSION:
@@ -111,6 +101,8 @@ export default function Index() {
 
             // First determine whether we are waiting for the next session or in a session from the time
             const inSession = (now >= sessionStartTime && now <= endTime);
+
+            console.log('Now:', now, 'Session start:', sessionStartTime, 'End:', endTime, 'In session:', inSession, 'Session state:', sessionState);
 
             if (inSession) {
                 // Session countdown

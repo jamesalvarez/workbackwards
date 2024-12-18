@@ -20,11 +20,13 @@ const useSessionStore = create(
       },
       setSessionLength: (length) => {
         console.log('Setting sessionLength:', length);
-        set({ sessionLength: parseInt(length) });
+        const validLength = Math.max(1, isNaN(length) ? 5 : length);
+        set({ sessionLength: validLength });
       },
       setIncrement: (inc) => {
         console.log('Setting increment:', inc);
-        set({ increment: parseInt(inc) });
+        const validIncrement = Math.max(1, isNaN(inc) ? 1 : inc);
+        set({ increment: validIncrement });
       },
       setEndTimeHour: (hour) => {
         console.log('Setting endTimeHour:', hour);

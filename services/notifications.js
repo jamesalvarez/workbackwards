@@ -34,11 +34,15 @@ export const scheduleNotification = async (sessionLength, endTimeHour, endTimeMi
     const startTime = new Date(endTime);
     startTime.setMinutes(startTime.getMinutes() - sessionLength);
 
+    console.log('Session length:', sessionLength);
+    console.log('Scheduling notification for:', startTime.toLocaleTimeString());
+    console.log('Ending at:', endTime.toLocaleTimeString());
+
     // Schedule start notification
     await Notifications.scheduleNotificationAsync({
         content: {
             title: 'Time to Work on Posture!',
-            body: 'Maintain good posture for 5 minutes',
+            body: 'Maintain good posture for the next period!',
             data: { type: 'start' }
         },
         trigger: {
