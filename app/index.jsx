@@ -1,6 +1,6 @@
 // app/(tabs)/index.js
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Alert, TextInput } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Notifications from 'expo-notifications';
@@ -21,6 +21,24 @@ export default function Index() {
     const [countdown, setCountdown] = useState('');
     const [tempTime, setTempTime] = useState(new Date());
     const [streak, setStreak] = useState(0);
+    const [sessionLength, setSessionLength] = useState(5);
+    const [increment, setIncrement] = useState(1);
+    const [showSessionConfig, setShowSessionConfig] = useState(false);
+
+    const loadSettings = async () => {
+        try {
+            const savedSessionLength = await AsyncStorage.getItem('sessionLength');
+            const savedIncrement = await AsyncStorage.getItem('increment');
+            if (savedSessionLength !== null) {
+                setSessionLength(parseInt(savedSessionLength));
+            }
+            if (savedIncrement !== null) {
+                setIncrement(parseInt(savedIncrement));
+            }
+        } catch (error) {
+            console.error('Error loading settings:', error);
+        }
+    };
 
     const loadEndTime = async () => {
         try {
@@ -40,18 +58,19 @@ export default function Index() {
         requestNotificationPermissions();
         loadStreak();
         loadEndTime();
+        loadSettings();
 
         // Set up notification listener
         const subscription = Notifications.addNotificationReceivedListener(() => {
             setSessionActive(true);
-            const endTime = new Date(Date.now() + 5 * 60 * 1000);
+            const endTime = new Date(Date.now() + sessionLength * 60 * 1000);
             setSessionEndTime(endTime);
-            // Automatically end session after 5 minutes
+            // Automatically end session after configured time
             setTimeout(() => {
                 if (sessionActive) {
                     handleSessionEnd();
                 }
-            }, 5 * 60 * 1000);
+            }, sessionLength * 60 * 1000);
         });
 
         // Cleanup subscription on unmount
@@ -71,9 +90,19 @@ export default function Index() {
 
     const updateStreak = async (success) => {
         try {
-            let newStreak = success ? streak + 1 : 0;
-            await AsyncStorage.setItem('streak', newStreak.toString());
-            setStreak(newStreak);
+            if (success) {
+                const newStreak = streak + 1;
+                const newSessionLength = sessionLength + increment;
+                await AsyncStorage.setItem('streak', newStreak.toString());
+                await AsyncStorage.setItem('sessionLength', newSessionLength.toString());
+                setStreak(newStreak);
+                setSessionLength(newSessionLength);
+            } else {
+                await AsyncStorage.setItem('streak', '0');
+                await AsyncStorage.setItem('sessionLength', '5');
+                setStreak(0);
+                setSessionLength(5);
+            }
         } catch (error) {
             console.error('Error saving streak:', error);
         }
@@ -188,6 +217,8 @@ export default function Index() {
             await AsyncStorage.setItem('endTime', tempTime.toISOString());
             setEndTime(tempTime);
             setShowTimePicker(false);
+            // Schedule notification automatically after setting time
+            await scheduleNotification();
         } catch (error) {
             console.error('Error saving end time:', error);
         }
@@ -202,47 +233,8 @@ export default function Index() {
         <View style={styles.container}>
             <Text style={styles.title}>Work Backwards</Text>
 
-            <TouchableOpacity
-                style={styles.button}
-                onPress={() => setShowTimePicker(true)}
-            >
-                <Text style={styles.buttonText}>
-                    Set End Time: {endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </Text>
-            </TouchableOpacity>
 
-            {showTimePicker && (
-                <View style={styles.timePickerContainer}>
-                    <DateTimePicker
-                        value={tempTime}
-                        mode="time"
-                        is24Hour={true}
-                        display="spinner"
-                        onChange={handleTimeChange}
-                    />
-                    <View style={styles.timePickerButtons}>
-                        <TouchableOpacity
-                            style={[styles.button, styles.cancelButton]}
-                            onPress={handleCancelTime}
-                        >
-                            <Text style={styles.buttonText}>Cancel</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.button, styles.setButton]}
-                            onPress={handleSetTime}
-                        >
-                            <Text style={styles.buttonText}>Set Time</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            )}
 
-            <TouchableOpacity
-                style={[styles.button, styles.scheduleButton]}
-                onPress={scheduleNotification}
-            >
-                <Text style={styles.buttonText}>Schedule Notification</Text>
-            </TouchableOpacity>
 
             <Text style={styles.countdownText}>Next notification in: {countdown}</Text>
             <Text style={styles.streakText}>Current Streak: {streak} days</Text>
@@ -325,5 +317,20 @@ const styles = StyleSheet.create({
         backgroundColor: '#4CAF50',
         flex: 1,
         marginLeft: 10,
+    },
+    label: {
+        fontSize: 16,
+        marginBottom: 5,
+        color: '#333',
+    },
+    input: {
+        width: '100%',
+        height: 40,
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 5,
+        paddingHorizontal: 10,
+        marginBottom: 15,
+        backgroundColor: 'white',
     },
 });
