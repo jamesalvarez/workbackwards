@@ -1,6 +1,7 @@
 // app/(tabs)/index.js
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Notifications from 'expo-notifications';
 import {SchedulableTriggerInputTypes} from "expo-notifications";
@@ -19,32 +20,107 @@ export default function Index() {
     const [showTimePicker, setShowTimePicker] = useState(false);
     const [countdown, setCountdown] = useState('');
     const [tempTime, setTempTime] = useState(new Date());
+    const [streak, setStreak] = useState(0);
+    const [sessionActive, setSessionActive] = useState(false);
+    const [sessionEndTime, setSessionEndTime] = useState(null);
 
     useEffect(() => {
         requestNotificationPermissions();
+        loadStreak();
+
+        // Set up notification listener
+        const subscription = Notifications.addNotificationReceivedListener(() => {
+            setSessionActive(true);
+            const endTime = new Date(Date.now() + 5 * 60 * 1000);
+            setSessionEndTime(endTime);
+            // Automatically end session after 5 minutes
+            setTimeout(() => {
+                if (sessionActive) {
+                    handleSessionEnd();
+                }
+            }, 5 * 60 * 1000);
+        });
+
+        // Cleanup subscription on unmount
+        return () => subscription.remove();
     }, []);
+
+    const loadStreak = async () => {
+        try {
+            const savedStreak = await AsyncStorage.getItem('streak');
+            if (savedStreak !== null) {
+                setStreak(parseInt(savedStreak));
+            }
+        } catch (error) {
+            console.error('Error loading streak:', error);
+        }
+    };
+
+    const updateStreak = async (success) => {
+        try {
+            let newStreak = success ? streak + 1 : 0;
+            await AsyncStorage.setItem('streak', newStreak.toString());
+            setStreak(newStreak);
+        } catch (error) {
+            console.error('Error saving streak:', error);
+        }
+    };
+
+    const handleSessionEnd = () => {
+        Alert.alert(
+            "Session Complete",
+            "Did you maintain good posture for the full 5 minutes?",
+            [
+                {
+                    text: "No",
+                    onPress: () => updateStreak(false),
+                    style: "cancel"
+                },
+                {
+                    text: "Yes",
+                    onPress: () => updateStreak(true)
+                }
+            ]
+        );
+        setSessionActive(false);
+    };
 
     useEffect(() => {
         const timer = setInterval(() => {
             const now = new Date();
-            const notificationTime = new Date(endTime);
-            notificationTime.setMinutes(notificationTime.getMinutes() - 5);
+            
+            if (sessionActive && sessionEndTime) {
+                // Session countdown
+                const diff = sessionEndTime - now;
+                if (diff <= 0) {
+                    setSessionActive(false);
+                    setSessionEndTime(null);
+                    return;
+                }
+                const minutes = Math.floor(diff / (1000 * 60));
+                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                setCountdown(`${minutes}m ${seconds}s remaining`);
+            } else {
+                // Next notification countdown
+                const notificationTime = new Date(endTime);
+                notificationTime.setMinutes(notificationTime.getMinutes() - 5);
 
-            if (now > notificationTime) {
-                // If current time is past notification time, calculate for next day
-                notificationTime.setDate(notificationTime.getDate() + 1);
+                if (now > notificationTime) {
+                    // If current time is past notification time, calculate for next day
+                    notificationTime.setDate(notificationTime.getDate() + 1);
+                }
+
+                const diff = notificationTime - now;
+                const hours = Math.floor(diff / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+                setCountdown(`${hours}h ${minutes}m ${seconds}s until next session`);
             }
-
-            const diff = notificationTime - now;
-            const hours = Math.floor(diff / (1000 * 60 * 60));
-            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-            setCountdown(`${hours}h ${minutes}m ${seconds}s`);
         }, 1000);
 
         return () => clearInterval(timer);
-    }, [endTime]);
+    }, [endTime, sessionActive, sessionEndTime]);
 
     const requestNotificationPermissions = async () => {
         const { status } = await Notifications.requestPermissionsAsync();
@@ -151,6 +227,16 @@ export default function Index() {
             </TouchableOpacity>
 
             <Text style={styles.countdownText}>Next notification in: {countdown}</Text>
+            <Text style={styles.streakText}>Current Streak: {streak} days</Text>
+            
+            {sessionActive && (
+                <TouchableOpacity
+                    style={[styles.button, styles.completeButton]}
+                    onPress={handleSessionEnd}
+                >
+                    <Text style={styles.buttonText}>Complete Session</Text>
+                </TouchableOpacity>
+            )}
         </View>
     );
 }
@@ -176,6 +262,16 @@ const styles = StyleSheet.create({
     },
     scheduleButton: {
         backgroundColor: '#4CAF50',
+    },
+    completeButton: {
+        backgroundColor: '#9C27B0',
+    },
+    streakText: {
+        textAlign: 'center',
+        fontSize: 16,
+        marginTop: 10,
+        color: '#9C27B0',
+        fontWeight: 'bold',
     },
     buttonText: {
         color: 'white',
