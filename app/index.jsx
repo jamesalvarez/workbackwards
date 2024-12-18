@@ -21,12 +21,25 @@ export default function Index() {
     const [countdown, setCountdown] = useState('');
     const [tempTime, setTempTime] = useState(new Date());
     const [streak, setStreak] = useState(0);
+
+    const loadEndTime = async () => {
+        try {
+            const savedEndTime = await AsyncStorage.getItem('endTime');
+            if (savedEndTime !== null) {
+                setEndTime(new Date(savedEndTime));
+                setTempTime(new Date(savedEndTime));
+            }
+        } catch (error) {
+            console.error('Error loading end time:', error);
+        }
+    };
     const [sessionActive, setSessionActive] = useState(false);
     const [sessionEndTime, setSessionEndTime] = useState(null);
 
     useEffect(() => {
         requestNotificationPermissions();
         loadStreak();
+        loadEndTime();
 
         // Set up notification listener
         const subscription = Notifications.addNotificationReceivedListener(() => {
@@ -170,9 +183,14 @@ export default function Index() {
         }
     };
 
-    const handleSetTime = () => {
-        setEndTime(tempTime);
-        setShowTimePicker(false);
+    const handleSetTime = async () => {
+        try {
+            await AsyncStorage.setItem('endTime', tempTime.toISOString());
+            setEndTime(tempTime);
+            setShowTimePicker(false);
+        } catch (error) {
+            console.error('Error saving end time:', error);
+        }
     };
 
     const handleCancelTime = () => {
