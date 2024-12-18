@@ -2,86 +2,94 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Alert, TextInput } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { requestNotificationPermissions, scheduleNotification } from './services/notifications';
+import {
+    requestNotificationPermissions,
+    scheduleNotification,
+    hasScheduledNotifications,
+    cancelNotifications
+} from './services/notifications';
+
+const SessionState = {
+    NOT_RUNNING: 'NOT_RUNNING',
+    WAITING: 'WAITING',
+    IN_SESSION: 'IN_SESSION',
+    POST_SESSION: 'POST_SESSION'
+};
 
 export default function Index() {
-    const [endTime, setEndTime] = useState(new Date());
-    const [showTimePicker, setShowTimePicker] = useState(false);
-    const [countdown, setCountdown] = useState('');
-    const [tempTime, setTempTime] = useState(new Date());
-    const [streak, setStreak] = useState(0);
+    const [sessionState, setSessionState] = useState(SessionState.NOT_RUNNING);
     const [sessionLength, setSessionLength] = useState(5);
     const [increment, setIncrement] = useState(1);
-    const [showSessionConfig, setShowSessionConfig] = useState(false);
+    const [endTime, setEndTime] = useState(new Date());
+
+    const [showTimePicker, setShowTimePicker] = useState(false);
+    const [countdown, setCountdown] = useState('');
+    const [streak, setStreak] = useState(0);
+    const [nextSessionLength, setNextSessionLength] = useState(5);
+
+    const [sessionActive, setSessionActive] = useState(false);
+    const [sessionEndTime, setSessionEndTime] = useState(null);
 
     const loadSettings = async () => {
         try {
             const savedSessionLength = await AsyncStorage.getItem('sessionLength');
             const savedIncrement = await AsyncStorage.getItem('increment');
+            const savedEndTime = await AsyncStorage.getItem('endTime');
+            const savedStreak = await AsyncStorage.getItem('streak');
+
             if (savedSessionLength !== null) {
                 setSessionLength(parseInt(savedSessionLength));
             }
+
             if (savedIncrement !== null) {
                 setIncrement(parseInt(savedIncrement));
+            }
+
+            if (savedEndTime !== null) {
+                setEndTime(new Date(savedEndTime));
+            }
+
+            if (savedStreak !== null) {
+                setStreak(parseInt(savedStreak));
             }
         } catch (error) {
             console.error('Error loading settings:', error);
         }
     };
 
-    const loadEndTime = async () => {
-        try {
-            const savedEndTime = await AsyncStorage.getItem('endTime');
-            if (savedEndTime !== null) {
-                setEndTime(new Date(savedEndTime));
-                setTempTime(new Date(savedEndTime));
-            }
-        } catch (error) {
-            console.error('Error loading end time:', error);
-        }
-    };
-    const [sessionActive, setSessionActive] = useState(false);
-    const [sessionEndTime, setSessionEndTime] = useState(null);
+
+
 
     useEffect(() => {
-        requestNotificationPermissions();
-        loadStreak();
-        loadEndTime();
-        loadSettings();
+        const initialize = async () => {
+            await requestNotificationPermissions();
+            await loadSettings();
+            await determineSessionState();
+        };
 
-        // Set up notification listener
-        const subscription = Notifications.addNotificationReceivedListener((notification) => {
-            const notificationType = notification.request.content.data?.type;
-
-            if (notificationType === 'start') {
-                setSessionActive(true);
-                const endTime = new Date(Date.now() + sessionLength * 60 * 1000);
-                setSessionEndTime(endTime);
-                // Automatically end session after configured time
-                setTimeout(() => {
-                    if (sessionActive) {
-                        handleSessionEnd();
-                    }
-                }, sessionLength * 60 * 1000);
-            } else if (notificationType === 'end') {
-                handleSessionEnd();
-            }
-        });
-
-        // Cleanup subscription on unmount
-        return () => subscription.remove();
+        initialize();
     }, []);
 
-    const loadStreak = async () => {
-        try {
-            const savedStreak = await AsyncStorage.getItem('streak');
-            if (savedStreak !== null) {
-                setStreak(parseInt(savedStreak));
-            }
-        } catch (error) {
-            console.error('Error loading streak:', error);
+    const determineSessionState = async () => {
+        const now = new Date();
+        const sessionStartTime = new Date(endTime);
+        sessionStartTime.setMinutes(sessionStartTime.getMinutes() - sessionLength);
+
+        // If we're in the session window
+        if (now >= sessionStartTime && now <= endTime) {
+            setSessionState(SessionState.IN_SESSION);
+            return;
         }
+
+        // If we're past the end time but haven't logged success/failure
+        if (now > endTime && sessionState === SessionState.IN_SESSION) {
+            setSessionState(SessionState.POST_SESSION);
+            return;
+        }
+
+        // Check if we have scheduled notifications
+        const hasNotifications = await hasScheduledNotifications();
+        setSessionState(hasNotifications ? SessionState.WAITING : SessionState.NOT_RUNNING);
     };
 
     const updateStreak = async (success) => {
@@ -104,24 +112,6 @@ export default function Index() {
         }
     };
 
-    const handleSessionEnd = () => {
-        Alert.alert(
-            "Session Complete",
-            "Did you maintain good posture for the full 5 minutes?",
-            [
-                {
-                    text: "No",
-                    onPress: () => updateStreak(false),
-                    style: "cancel"
-                },
-                {
-                    text: "Yes",
-                    onPress: () => updateStreak(true)
-                }
-            ]
-        );
-        setSessionActive(false);
-    };
 
     useEffect(() => {
         const timer = setInterval(() => {
@@ -160,53 +150,120 @@ export default function Index() {
         return () => clearInterval(timer);
     }, [endTime, sessionActive, sessionEndTime]);
 
-
-    const handleTimeChange = (event, selectedTime) => {
-        if (selectedTime) {
-            setTempTime(selectedTime);
-        }
+    const handleStart = async () => {
+        await scheduleNotification(endTime);
+        await determineSessionState();
     };
 
-    const handleSetTime = async () => {
-        try {
-            await AsyncStorage.setItem('endTime', tempTime.toISOString());
-            setEndTime(tempTime);
-            setShowTimePicker(false);
-            // Schedule notification automatically after setting time
-            await scheduleNotification();
-        } catch (error) {
-            console.error('Error saving end time:', error);
-        }
+    const handleStop = async () => {
+        await cancelNotifications();
+        await determineSessionState();;
     };
 
-    const handleCancelTime = () => {
-        setTempTime(endTime);
-        setShowTimePicker(false);
+    const renderContent = () => {
+        switch (sessionState) {
+            case SessionState.NOT_RUNNING:
+                return (
+                    <>
+                        <TouchableOpacity
+                            style={[styles.button, styles.startButton]}
+                            onPress={handleStart}
+                        >
+                            <Text style={styles.buttonText}>Start Daily Sessions</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.streakText}>Current Streak: {streak} days</Text>
+                    </>
+                );
+
+            case SessionState.WAITING:
+                return (
+                    <>
+                        <Text style={styles.countdownText}>Next session in: {countdown}</Text>
+                        <Text style={styles.sessionText}>Next session length: {nextSessionLength} minutes</Text>
+                        <Text style={styles.streakText}>Current Streak: {streak} days</Text>
+                        <TouchableOpacity
+                            style={[styles.button, styles.stopButton]}
+                            onPress={handleStop}
+                        >
+                            <Text style={styles.buttonText}>Stop Sessions</Text>
+                        </TouchableOpacity>
+                    </>
+                );
+
+            case SessionState.IN_SESSION:
+                return (
+                    <>
+                        <Text style={styles.countdownText}>Session time remaining: {countdown}</Text>
+                        <Text style={styles.streakText}>Current Streak: {streak} days</Text>
+                        <TouchableOpacity
+                            style={[styles.button, styles.completeButton]}
+                            onPress={() => setSessionState(SessionState.POST_SESSION)}
+                        >
+                            <Text style={styles.buttonText}>End Session</Text>
+                        </TouchableOpacity>
+                    </>
+                );
+
+            case SessionState.POST_SESSION:
+                return (
+                    <>
+                        <Text style={styles.title}>Did you maintain good posture?</Text>
+                        <View style={styles.buttonContainer}>
+                            <TouchableOpacity
+                                style={[styles.button, styles.failButton]}
+                                onPress={() => updateStreak(false)}
+                            >
+                                <Text style={styles.buttonText}>No</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.button, styles.successButton]}
+                                onPress={() => updateStreak(true)}
+                            >
+                                <Text style={styles.buttonText}>Yes</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </>
+                );
+        }
     };
 
     return (
         <View style={styles.container}>
             <Text style={styles.title}>Work Backwards</Text>
-
-
-
-
-            <Text style={styles.countdownText}>Next notification in: {countdown}</Text>
-            <Text style={styles.streakText}>Current Streak: {streak} days</Text>
-
-            {sessionActive && (
-                <TouchableOpacity
-                    style={[styles.button, styles.completeButton]}
-                    onPress={handleSessionEnd}
-                >
-                    <Text style={styles.buttonText}>Complete Session</Text>
-                </TouchableOpacity>
-            )}
+            {renderContent()}
         </View>
     );
 }
 
 const styles = StyleSheet.create({
+    buttonContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        width: '100%',
+        marginTop: 20,
+    },
+    startButton: {
+        backgroundColor: '#4CAF50',
+    },
+    stopButton: {
+        backgroundColor: '#f44336',
+    },
+    failButton: {
+        backgroundColor: '#f44336',
+        flex: 1,
+        marginRight: 10,
+    },
+    successButton: {
+        backgroundColor: '#4CAF50',
+        flex: 1,
+        marginLeft: 10,
+    },
+    sessionText: {
+        textAlign: 'center',
+        fontSize: 16,
+        marginTop: 10,
+        color: '#666',
+    },
     container: {
         flex: 1,
         padding: 20,

@@ -18,6 +18,11 @@ export const requestNotificationPermissions = async () => {
     return status;
 };
 
+export const hasScheduledNotifications = async () => {
+    const notifications = await Notifications.getAllScheduledNotificationsAsync();
+    return notifications.length > 0;
+};
+
 export const scheduleNotification = async (endTime) => {
     // Cancel existing notifications
     await Notifications.cancelAllScheduledNotificationsAsync();
@@ -58,3 +63,7 @@ export const scheduleNotification = async (endTime) => {
 
     return startTime;
 };
+
+export const cancelNotifications = async () => {
+    await Notifications.cancelAllScheduledNotificationsAsync();
+}
