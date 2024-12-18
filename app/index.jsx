@@ -25,7 +25,8 @@ export default function Index() {
         increment, setIncrement,
         endTimeHour, endTimeMinute,
         streak, setStreak,
-        updateStreak
+        updateStreak,
+        lastSessionDate, setLastSessionDate
     } = useSessionStore()
 
     const [countdown, setCountdown] = useState('');
@@ -67,7 +68,8 @@ export default function Index() {
                 case SessionState.NOT_RUNNING:
                     break;
                 case SessionState.WAITING:
-                    if (now >= sessionStartTime && now <= endTime) {
+                    const today = new Date().toDateString();
+                    if (now >= sessionStartTime && now <= endTime && lastSessionDate !== today) {
                         setSessionState(SessionState.IN_SESSION);
                     }
                     break;
@@ -104,13 +106,12 @@ export default function Index() {
 
             console.log('Now:', now, 'Session start:', sessionStartTime, 'End:', endTime, 'In session:', inSession, 'Session state:', sessionState);
 
-            if (inSession) {
+            if (sessionState === SessionState.IN_SESSION) {
                 // Session countdown
                 const diff = endTime - now;
                 const minutes = Math.floor(diff / (1000 * 60));
                 const seconds = Math.floor((diff % (1000 * 60)) / 1000);
                 setCountdown(`${minutes}m ${seconds}s remaining`);
-
 
 
             } else {
@@ -152,6 +153,13 @@ export default function Index() {
         setSessionState(SessionState.NOT_RUNNING);
     };
 
+    const handlePostSession = async (success) => {
+        const newSessionLength = updateStreak(success);
+        setLastSessionDate(new Date().toDateString());
+        setSessionState(SessionState.WAITING);
+        await scheduleNotification(newSessionLength, endTimeHour, endTimeMinute);
+    }
+
     const renderContent = () => {
         switch (sessionState) {
             case SessionState.NOT_RUNNING:
@@ -169,7 +177,7 @@ export default function Index() {
             case SessionState.WAITING:
                 return (
                     <>
-                        <Text style={styles.countdownText}>Next session in: {countdown}</Text>
+                        <Text style={styles.countdownText}>{countdown}</Text>
                         <Text style={styles.sessionText}>Next session length: {sessionLength} minutes</Text>
                         <Text style={styles.streakText}>Current Streak: {streak} days</Text>
                         <TouchableOpacity
@@ -202,18 +210,16 @@ export default function Index() {
                         <View style={styles.buttonContainer}>
                             <TouchableOpacity
                                 style={[styles.button, styles.failButton]}
-                                onPress={async () => {
-                                    updateStreak(false);
-                                    setSessionState(SessionState.WAITING);
+                                onPress={ () => {
+                                    handlePostSession(false);
                                 }}
                             >
                                 <Text style={styles.buttonText}>No</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.button, styles.successButton]}
-                                onPress={async () => {
-                                    updateStreak(true);
-                                    setSessionState(SessionState.WAITING);
+                                onPress={ () => {
+                                    handlePostSession(true);
                                 }}
                             >
                                 <Text style={styles.buttonText}>Yes</Text>

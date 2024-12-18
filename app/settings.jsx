@@ -4,10 +4,11 @@ import { useFocusEffect } from 'expo-router';
 import { scheduleNotification } from '../services/notifications';
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import {SessionState} from "./index";
+
 
 export default function Settings() {
     const {
+        lastSessionDate, setLastSessionDate,
         sessionState, setSessionState,
         sessionLength, setSessionLength,
         increment, setIncrement,
@@ -45,7 +46,8 @@ export default function Settings() {
             setIncrement(newIncrement);
             setEndTimeHour(localEndTimeHour);
             setEndTimeMinute(localEndTimeMinute);
-            setSessionState(SessionState.WAITING);
+            setSessionState('WAITING');
+            setLastSessionDate(null);
 
             // Schedule notification with new end time
             const notificationTime = await scheduleNotification(newSessionLength, localEndTimeHour, localEndTimeMinute);

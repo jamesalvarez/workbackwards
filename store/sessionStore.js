@@ -13,6 +13,7 @@ const useSessionStore = create(
       endTimeHour: new Date().getHours(),
       endTimeMinute: new Date().getMinutes(),
       streak: 0,
+      lastSessionDate: null,
       
       setSessionState: (state) => {
         console.log('Setting sessionState:', state);
@@ -40,6 +41,10 @@ const useSessionStore = create(
         console.log('Setting streak:', count);
         set({ streak: count });
       },
+      setLastSessionDate: (date) => {
+        console.log('Setting lastSessionDate:', date);
+        set({ lastSessionDate: date });
+      },
       
       updateStreak: (success) => {
         const { streak, sessionLength, increment } = get()
@@ -50,9 +55,10 @@ const useSessionStore = create(
           currentIncrement: increment
         });
         
+        let newSessionLength;
         if (success) {
           const newStreak = streak + 1;
-          const newSessionLength = sessionLength + increment;
+          newSessionLength = sessionLength + increment;
           console.log('Success - New values:', {
             newStreak,
             newSessionLength
@@ -62,12 +68,14 @@ const useSessionStore = create(
             sessionLength: newSessionLength
           })
         } else {
+          newSessionLength = 5;
           console.log('Failed - Resetting streak and session length');
           set({
             streak: 0,
-            sessionLength: 5
+            sessionLength: newSessionLength
           })
         }
+        return newSessionLength;
       }
     }),
     {
