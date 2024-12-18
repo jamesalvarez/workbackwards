@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Notifications from 'expo-notifications';
+import {SchedulableTriggerInputTypes} from "expo-notifications";
 
 // Set up notifications configuration
 Notifications.setNotificationHandler({
@@ -16,10 +17,34 @@ Notifications.setNotificationHandler({
 export default function Index() {
     const [endTime, setEndTime] = useState(new Date());
     const [showTimePicker, setShowTimePicker] = useState(false);
+    const [countdown, setCountdown] = useState('');
+    const [tempTime, setTempTime] = useState(new Date());
 
     useEffect(() => {
         requestNotificationPermissions();
     }, []);
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            const now = new Date();
+            const notificationTime = new Date(endTime);
+            notificationTime.setMinutes(notificationTime.getMinutes() - 5);
+
+            if (now > notificationTime) {
+                // If current time is past notification time, calculate for next day
+                notificationTime.setDate(notificationTime.getDate() + 1);
+            }
+
+            const diff = notificationTime - now;
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+            setCountdown(`${hours}h ${minutes}m ${seconds}s`);
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [endTime]);
 
     const requestNotificationPermissions = async () => {
         const { status } = await Notifications.requestPermissionsAsync();
@@ -32,9 +57,21 @@ export default function Index() {
         // Cancel existing notifications
         await Notifications.cancelAllScheduledNotificationsAsync();
 
-        // Schedule notification 5 minutes before end time
+        // Calculate the next notification time
+        const now = new Date();
         const startTime = new Date(endTime);
         startTime.setMinutes(startTime.getMinutes() - 5);
+
+        // If the time has already passed today, schedule for tomorrow
+        if (now > startTime) {
+            startTime.setDate(startTime.getDate() + 1);
+        }
+
+        // Calculate seconds until next notification
+        const secondsUntilNotification = Math.floor((startTime - now) / 1000);
+
+        // Debug log the seconds until notification
+        console.log('Seconds until notification:', secondsUntilNotification);
 
         await Notifications.scheduleNotificationAsync({
             content: {
@@ -42,20 +79,29 @@ export default function Index() {
                 body: 'Maintain good posture for 5 minutes',
             },
             trigger: {
-                hour: startTime.getHours(),
-                minute: startTime.getMinutes(),
-                repeats: true,
+                type: SchedulableTriggerInputTypes.TIME_INTERVAL,
+                seconds: secondsUntilNotification,
+                repeats: false,
             },
         });
 
-        alert('Notification scheduled!');
+        alert('Notification scheduled for ' + startTime.toLocaleTimeString());
     };
 
     const handleTimeChange = (event, selectedTime) => {
-        setShowTimePicker(false);
         if (selectedTime) {
-            setEndTime(selectedTime);
+            setTempTime(selectedTime);
         }
+    };
+
+    const handleSetTime = () => {
+        setEndTime(tempTime);
+        setShowTimePicker(false);
+    };
+
+    const handleCancelTime = () => {
+        setTempTime(endTime);
+        setShowTimePicker(false);
     };
 
     return (
@@ -72,13 +118,29 @@ export default function Index() {
             </TouchableOpacity>
 
             {showTimePicker && (
-                <DateTimePicker
-                    value={endTime}
-                    mode="time"
-                    is24Hour={true}
-                    display="default"
-                    onChange={handleTimeChange}
-                />
+                <View style={styles.timePickerContainer}>
+                    <DateTimePicker
+                        value={tempTime}
+                        mode="time"
+                        is24Hour={true}
+                        display="spinner"
+                        onChange={handleTimeChange}
+                    />
+                    <View style={styles.timePickerButtons}>
+                        <TouchableOpacity
+                            style={[styles.button, styles.cancelButton]}
+                            onPress={handleCancelTime}
+                        >
+                            <Text style={styles.buttonText}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.button, styles.setButton]}
+                            onPress={handleSetTime}
+                        >
+                            <Text style={styles.buttonText}>Set Time</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
             )}
 
             <TouchableOpacity
@@ -87,6 +149,8 @@ export default function Index() {
             >
                 <Text style={styles.buttonText}>Schedule Notification</Text>
             </TouchableOpacity>
+
+            <Text style={styles.countdownText}>Next notification in: {countdown}</Text>
         </View>
     );
 }
@@ -118,5 +182,34 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         fontSize: 16,
         fontWeight: 'bold',
+    },
+    countdownText: {
+        textAlign: 'center',
+        fontSize: 18,
+        marginTop: 20,
+        color: '#666',
+    },
+    timePickerContainer: {
+        alignItems: 'center',
+        backgroundColor: 'white',
+        padding: 20,
+        borderRadius: 10,
+        marginVertical: 20,
+    },
+    timePickerButtons: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        width: '100%',
+        marginTop: 20,
+    },
+    cancelButton: {
+        backgroundColor: '#ff6b6b',
+        flex: 1,
+        marginRight: 10,
+    },
+    setButton: {
+        backgroundColor: '#4CAF50',
+        flex: 1,
+        marginLeft: 10,
     },
 });
