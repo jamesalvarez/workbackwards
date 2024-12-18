@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { scheduleNotification } from './services/notifications';
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -47,7 +48,10 @@ export default function Settings() {
             setOriginalSessionLength(sessionLength);
             setOriginalIncrement(increment);
             setOriginalEndTime(endTime);
-            alert('Settings saved successfully!');
+            
+            // Schedule notification with new end time
+            const notificationTime = await scheduleNotification(endTime);
+            alert(`Settings saved successfully! Next notification scheduled for ${notificationTime.toLocaleTimeString()}`);
         } catch (error) {
             console.error('Error saving settings:', error);
             alert('Failed to save settings');

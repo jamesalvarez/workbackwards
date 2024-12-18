@@ -3,17 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Alert, TextInput } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import * as Notifications from 'expo-notifications';
-import {SchedulableTriggerInputTypes} from "expo-notifications";
-
-// Set up notifications configuration
-Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-    }),
-});
+import { requestNotificationPermissions, scheduleNotification, setupNotificationListener } from './services/notifications';
 
 export default function Index() {
     const [endTime, setEndTime] = useState(new Date());
@@ -164,47 +154,6 @@ export default function Index() {
         return () => clearInterval(timer);
     }, [endTime, sessionActive, sessionEndTime]);
 
-    const requestNotificationPermissions = async () => {
-        const { status } = await Notifications.requestPermissionsAsync();
-        if (status !== 'granted') {
-            alert('You need to enable notifications for this app to work!');
-        }
-    };
-
-    const scheduleNotification = async () => {
-        // Cancel existing notifications
-        await Notifications.cancelAllScheduledNotificationsAsync();
-
-        // Calculate the next notification time
-        const now = new Date();
-        const startTime = new Date(endTime);
-        startTime.setMinutes(startTime.getMinutes() - 5);
-
-        // If the time has already passed today, schedule for tomorrow
-        if (now > startTime) {
-            startTime.setDate(startTime.getDate() + 1);
-        }
-
-        // Calculate seconds until next notification
-        const secondsUntilNotification = Math.floor((startTime - now) / 1000);
-
-        // Debug log the seconds until notification
-        console.log('Seconds until notification:', secondsUntilNotification);
-
-        await Notifications.scheduleNotificationAsync({
-            content: {
-                title: 'Time to Work on Posture!',
-                body: 'Maintain good posture for 5 minutes',
-            },
-            trigger: {
-                type: SchedulableTriggerInputTypes.TIME_INTERVAL,
-                seconds: secondsUntilNotification,
-                repeats: false,
-            },
-        });
-
-        alert('Notification scheduled for ' + startTime.toLocaleTimeString());
-    };
 
     const handleTimeChange = (event, selectedTime) => {
         if (selectedTime) {
