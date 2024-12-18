@@ -15,6 +15,13 @@ For example:
 - Day 2: 4:50 PM - 5:00 PM (10 minutes)
 - Day 3: 4:45 PM - 5:00 PM (15 minutes)
 
+The app incorporates several proven behavioral science principles:
+- Progressive overload
+- Fixed anchoring (end time)
+- Success-based progression
+- Streak maintenance
+- Clear feedback loops
+
 ## Use Cases
 
 ### Posture Training
@@ -43,7 +50,7 @@ For example:
 - React Native / Expo
 - Expo Router for navigation
 - Expo Notifications for reminders
-- AsyncStorage for progress persistence
+- Zustand for progress persistence
 
 ### Key Features
 - Daily notifications
@@ -52,90 +59,13 @@ For example:
 - Streak counting
 - Adaptive difficulty
 
-### Data Structure
-```javascript
-{
-  practice: {
-    endTime: Date,
-    currentDuration: number,
-    streak: number,
-    history: [{
-      date: Date,
-      duration: number,
-      success: boolean
-    }]
-  }
-}
-```
-
 ## Future Enhancements
 
-### Short Term
 - Custom increment/decrement amounts
 - Multiple practice types
 - Daily stats and graphs
 - Rest day scheduling
 
-### Medium Term
-- Social features (shared goals)
-- Achievement system
-- Custom notification sounds
-- Calendar integration
-
-### Long Term
-- AI-powered difficulty adjustment
-- Integration with health apps
-- Wearable device support
-- Video guidance for exercises
-
-## Behavioral Science Elements
-
-The app incorporates several proven behavioral science principles:
-- Progressive overload
-- Fixed anchoring (end time)
-- Success-based progression
-- Streak maintenance
-- Clear feedback loops
-
-## Development Roadmap
-
-### Phase 1: Core Functionality
-- Basic timer setup
-- Notification system
-- Simple progress tracking
-- Success/failure reporting
-
-### Phase 2: User Experience
-- Onboarding flow
-- Settings customization
-- Progress visualization
-- Practice type selection
-
-### Phase 3: Advanced Features
-- Data analytics
-- Social features
-- Achievement system
-- Health app integration
-
-## Technical Notes
-
-### Notifications
-- Uses Expo's notification system
-- Daily scheduled notifications
-- Custom notification handling
-- Background task management
-
-### Storage
-- AsyncStorage for local data
-- Future consideration for cloud sync
-- Backup/restore functionality
-- Data migration strategy
-
-### Performance Considerations
-- Minimal background processes
-- Efficient state management
-- Battery usage optimization
-- Cache management
 
 ## Contributing
 
@@ -151,7 +81,7 @@ MIT License - See LICENSE file for details
 
 ## Contact
 
-[Your Contact Information]
+james@jamesalvarez.co.uk
 
 ---
 
