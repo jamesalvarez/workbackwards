@@ -60,14 +60,24 @@ export default function Index() {
         try {
             console.log('Determining session state: ', sessionState);
             const now = new Date();
-
             const { sessionStartTime, endTime } = getTodaysStartAndEndTime();
+
+            console.log('Current time:', now.toLocaleTimeString());
+            console.log('Session start time:', sessionStartTime.toLocaleTimeString());
+            console.log('Session end time:', endTime.toLocaleTimeString());
+
+            // If we're past today's end time, reset to WAITING for tomorrow
+            if (now > endTime && sessionState !== SessionState.NOT_RUNNING) {
+                console.log('Past end time, resetting to WAITING');
+                setSessionState(SessionState.WAITING);
+                return;
+            }
 
             switch (sessionState) {
                 case SessionState.NOT_RUNNING:
                     break;
                 case SessionState.WAITING:
-                    if (now >= sessionStartTime) {
+                    if (now >= sessionStartTime && now <= endTime) {
                         console.log('Setting session state to IN_SESSION');
                         setSessionState(SessionState.IN_SESSION);
                     }
@@ -79,6 +89,8 @@ export default function Index() {
                     }
                     break;
                 case SessionState.POST_SESSION:
+                    // After logging success/failure, it should transition back to WAITING
+                    // This transition is handled in the success/failure buttons
                     break;
             }
 
@@ -136,7 +148,7 @@ export default function Index() {
         }, 1000);
 
         return () => clearInterval(timer);
-    }, []);
+    }, [sessionState, sessionLength, endTimeHour, endTimeMinute, streak]);
 
     const handleStart = async () => {
         await scheduleNotification(sessionLength, endTimeHour, endTimeMinute);
