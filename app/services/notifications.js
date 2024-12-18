@@ -22,26 +22,16 @@ export const scheduleNotification = async (endTime) => {
     // Cancel existing notifications
     await Notifications.cancelAllScheduledNotificationsAsync();
 
-    // Calculate the next notification time
-    const now = new Date();
+    // Calculate the start time (5 minutes before end time)
     const startTime = new Date(endTime);
     startTime.setMinutes(startTime.getMinutes() - 5);
 
-    // If the time has already passed today, schedule for tomorrow
-    if (now > startTime) {
-        startTime.setDate(startTime.getDate() + 1);
-    }
-
-    // Calculate seconds until next notification
-    const secondsUntilNotification = Math.floor((startTime - now) / 1000);
-
-    // Debug log the seconds until notification
-    console.log('Seconds until notification:', secondsUntilNotification);
-
+    // Schedule start notification
     await Notifications.scheduleNotificationAsync({
         content: {
             title: 'Time to Work on Posture!',
             body: 'Maintain good posture for 5 minutes',
+            data: { type: 'start' }
         },
         trigger: {
             type: SchedulableTriggerInputTypes.DAILY_INTERVAL,
@@ -51,10 +41,20 @@ export const scheduleNotification = async (endTime) => {
         },
     });
 
-    return startTime;
-};
+    // Schedule end notification
+    await Notifications.scheduleNotificationAsync({
+        content: {
+            title: 'Posture Session Complete!',
+            body: 'Time to log your progress',
+            data: { type: 'end', screen: 'index' }
+        },
+        trigger: {
+            type: SchedulableTriggerInputTypes.DAILY_INTERVAL,
+            hour: endTime.getHours(),
+            minute: endTime.getMinutes(),
+            repeats: true,
+        },
+    });
 
-export const setupNotificationListener = (onNotificationReceived) => {
-    const subscription = Notifications.addNotificationReceivedListener(onNotificationReceived);
-    return subscription;
+    return startTime;
 };

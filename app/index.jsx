@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Alert, TextInput } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { requestNotificationPermissions, scheduleNotification, setupNotificationListener } from './services/notifications';
+import { requestNotificationPermissions, scheduleNotification } from './services/notifications';
 
 export default function Index() {
     const [endTime, setEndTime] = useState(new Date());
@@ -51,16 +51,22 @@ export default function Index() {
         loadSettings();
 
         // Set up notification listener
-        const subscription = Notifications.addNotificationReceivedListener(() => {
-            setSessionActive(true);
-            const endTime = new Date(Date.now() + sessionLength * 60 * 1000);
-            setSessionEndTime(endTime);
-            // Automatically end session after configured time
-            setTimeout(() => {
-                if (sessionActive) {
-                    handleSessionEnd();
-                }
-            }, sessionLength * 60 * 1000);
+        const subscription = Notifications.addNotificationReceivedListener((notification) => {
+            const notificationType = notification.request.content.data?.type;
+
+            if (notificationType === 'start') {
+                setSessionActive(true);
+                const endTime = new Date(Date.now() + sessionLength * 60 * 1000);
+                setSessionEndTime(endTime);
+                // Automatically end session after configured time
+                setTimeout(() => {
+                    if (sessionActive) {
+                        handleSessionEnd();
+                    }
+                }, sessionLength * 60 * 1000);
+            } else if (notificationType === 'end') {
+                handleSessionEnd();
+            }
         });
 
         // Cleanup subscription on unmount
@@ -120,7 +126,7 @@ export default function Index() {
     useEffect(() => {
         const timer = setInterval(() => {
             const now = new Date();
-            
+
             if (sessionActive && sessionEndTime) {
                 // Session countdown
                 const diff = sessionEndTime - now;
@@ -187,7 +193,7 @@ export default function Index() {
 
             <Text style={styles.countdownText}>Next notification in: {countdown}</Text>
             <Text style={styles.streakText}>Current Streak: {streak} days</Text>
-            
+
             {sessionActive && (
                 <TouchableOpacity
                     style={[styles.button, styles.completeButton]}
