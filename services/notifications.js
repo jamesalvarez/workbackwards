@@ -23,11 +23,14 @@ export const hasScheduledNotifications = async () => {
     return notifications.length > 0;
 };
 
-export const scheduleNotification = async (sessionLength, endTime) => {
+export const scheduleNotification = async (sessionLength, endTimeHour, endTimeMinute) => {
     // Cancel existing notifications
     await Notifications.cancelAllScheduledNotificationsAsync();
 
     // Calculate startTime by subtracting sessionLength from endTime
+    const now = new Date();
+    const endTime = new Date(now);
+    endTime.setHours(endTimeHour, endTimeMinute, 0, 0);
     const startTime = new Date(endTime);
     startTime.setMinutes(startTime.getMinutes() - sessionLength);
 

@@ -1,5 +1,6 @@
 // app/(tabs)/index.js
 import React, { useState, useEffect } from 'react';
+import useSessionStore from '../store/sessionStore';
 import { StyleSheet, View, Text, TouchableOpacity, Alert, TextInput } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from 'expo-router';
@@ -8,7 +9,7 @@ import {
     scheduleNotification,
     hasScheduledNotifications,
     cancelNotifications
-} from './services/notifications';
+} from '../services/notifications';
 
 const SessionState = {
     NOT_RUNNING: 'NOT_RUNNING',
@@ -18,52 +19,22 @@ const SessionState = {
 };
 
 export default function Index() {
-    const [sessionState, setSessionState] = useState(SessionState.NOT_RUNNING);
-    const [sessionLength, setSessionLength] = useState(5);
-    const [increment, setIncrement] = useState(1);
-    const [endTime, setEndTime] = useState(new Date());
+    const {
+        sessionState, setSessionState,
+        sessionLength, setSessionLength,
+        increment, setIncrement,
+        endTimeHour, endTimeMinute,
+        streak, setStreak,
+        updateStreak
+    } = useSessionStore()
 
-    const [showTimePicker, setShowTimePicker] = useState(false);
     const [countdown, setCountdown] = useState('');
-    const [streak, setStreak] = useState(0);
-
-    const loadSettings = async () => {
-        try {
-            const savedSessionLength = await AsyncStorage.getItem('sessionLength');
-            const savedIncrement = await AsyncStorage.getItem('increment');
-            const savedEndTime = await AsyncStorage.getItem('endTime');
-            const savedStreak = await AsyncStorage.getItem('streak');
-
-            if (savedSessionLength !== null) {
-                setSessionLength(parseInt(savedSessionLength));
-            }
-
-            if (savedIncrement !== null) {
-                setIncrement(parseInt(savedIncrement));
-            }
-
-            if (savedEndTime !== null) {
-                setEndTime(new Date(savedEndTime));
-            }
-
-            if (savedStreak !== null) {
-                setStreak(parseInt(savedStreak));
-            }
-
-            console.log('Loaded settings:', savedSessionLength, savedIncrement, savedEndTime, savedStreak);
-        } catch (error) {
-            console.error('Error loading settings:', error);
-        }
-    };
-
-
 
 
     useFocusEffect(
         React.useCallback(() => {
             const initialize = async () => {
                 await requestNotificationPermissions();
-                await loadSettings();
                 await determineSessionState();
             };
 
@@ -71,58 +42,62 @@ export default function Index() {
         }, [])
     );
 
-    const determineSessionState = async () => {
+    const getTodaysStartAndEndTime = () => {
         const now = new Date();
+
+        // Get today's endTime
+        const endTime = new Date(now);
+        endTime.setHours(endTimeHour, endTimeMinute, 0, 0);
+
+        // Get today's session start time
         const sessionStartTime = new Date(endTime);
         sessionStartTime.setMinutes(sessionStartTime.getMinutes() - sessionLength);
 
-        // If we're in the session window
-        if (now >= sessionStartTime && now <= endTime) {
-            setSessionState(SessionState.IN_SESSION);
-            return;
-        }
+        return { sessionStartTime, endTime };
+    }
 
-        // If we're past the end time but haven't logged success/failure
-        if (now > endTime && sessionState === SessionState.IN_SESSION) {
-            setSessionState(SessionState.POST_SESSION);
-            return;
-        }
-
-        // Check if we have scheduled notifications
-        const hasNotifications = await hasScheduledNotifications();
-        setSessionState(hasNotifications ? SessionState.WAITING : SessionState.NOT_RUNNING);
-    };
-
-    const updateStreak = async (success) => {
+    const determineSessionState = async () => {
         try {
-            if (success) {
-                const newStreak = streak + 1;
-                const newSessionLength = sessionLength + increment;
-                await AsyncStorage.setItem('streak', newStreak.toString());
-                await AsyncStorage.setItem('sessionLength', newSessionLength.toString());
-                setStreak(newStreak);
-                setSessionLength(newSessionLength);
-            } else {
-                await AsyncStorage.setItem('streak', '0');
-                await AsyncStorage.setItem('sessionLength', '5');
-                setStreak(0);
-                setSessionLength(5);
+            console.log('Determining session state: ', sessionState);
+            const now = new Date();
+
+            const { sessionStartTime, endTime } = getTodaysStartAndEndTime();
+
+            switch (sessionState) {
+                case SessionState.NOT_RUNNING:
+                    break;
+                case SessionState.WAITING:
+                    if (now >= sessionStartTime) {
+                        console.log('Setting session state to IN_SESSION');
+                        setSessionState(SessionState.IN_SESSION);
+                    }
+                    break;
+                case SessionState.IN_SESSION:
+                    if (now > endTime) {
+                        console.log('Setting session state to POST_SESSION');
+                        setSessionState(SessionState.POST_SESSION);
+                    }
+                    break;
+                case SessionState.POST_SESSION:
+                    break;
             }
+
         } catch (error) {
-            console.error('Error saving streak:', error);
+            console.error('Error determining session state:', error);
+            setSessionState(SessionState.NOT_RUNNING);
         }
     };
+
 
 
     useEffect(() => {
         const timer = setInterval(() => {
             const now = new Date();
+            const { sessionStartTime, endTime } = getTodaysStartAndEndTime();
+
+
 
             // First determine whether we are waiting for the next session or in a session from the time
-            const sessionStartTime = new Date(endTime);
-            sessionStartTime.setMinutes(sessionStartTime.getMinutes() - sessionLength);
-
-
             const inSession = (now >= sessionStartTime && now <= endTime);
 
             if (inSession) {
@@ -149,7 +124,11 @@ export default function Index() {
                 const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
                 const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
-                setCountdown(`${hours}h ${minutes}m ${seconds}s until next session`);
+                if (hours > 0) {
+                    setCountdown(`${hours}h ${minutes}m  until next session`);
+                } else {
+                    setCountdown(`${minutes}m ${seconds}s until next session`);
+                }
 
             }
 
@@ -157,16 +136,16 @@ export default function Index() {
         }, 1000);
 
         return () => clearInterval(timer);
-    }, [endTime]);
+    }, []);
 
     const handleStart = async () => {
-        await scheduleNotification(sessionLength, endTime);
-        await determineSessionState();
+        await scheduleNotification(sessionLength, endTimeHour, endTimeMinute);
+        setSessionState(SessionState.WAITING);
     };
 
     const handleStop = async () => {
         await cancelNotifications();
-        await determineSessionState();;
+        setSessionState(SessionState.NOT_RUNNING);
     };
 
     const renderContent = () => {
@@ -219,13 +198,19 @@ export default function Index() {
                         <View style={styles.buttonContainer}>
                             <TouchableOpacity
                                 style={[styles.button, styles.failButton]}
-                                onPress={() => updateStreak(false)}
+                                onPress={async () => {
+                                    updateStreak(false);
+                                    setSessionState(SessionState.WAITING);
+                                }}
                             >
                                 <Text style={styles.buttonText}>No</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.button, styles.successButton]}
-                                onPress={() => updateStreak(true)}
+                                onPress={async () => {
+                                    updateStreak(true);
+                                    setSessionState(SessionState.WAITING);
+                                }}
                             >
                                 <Text style={styles.buttonText}>Yes</Text>
                             </TouchableOpacity>
@@ -238,7 +223,7 @@ export default function Index() {
     return (
         <View style={styles.container}>
             <Text style={styles.title}>Work Backwards</Text>
-            {renderContent()}
+            {sessionState !== null && renderContent()}
         </View>
     );
 }

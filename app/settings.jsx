@@ -1,59 +1,43 @@
 import React, { useState } from 'react';
+import useSessionStore from '../store/sessionStore';
 import { useFocusEffect } from 'expo-router';
-import { scheduleNotification } from './services/notifications';
+import { scheduleNotification } from '../services/notifications';
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 export default function Settings() {
-    const [sessionLength, setSessionLength] = useState('5');
-    const [increment, setIncrement] = useState('1');
-    const [endTime, setEndTime] = useState(new Date());
-    const [originalEndTime, setOriginalEndTime] = useState(new Date());
-    const [originalSessionLength, setOriginalSessionLength] = useState('5');
-    const [originalIncrement, setOriginalIncrement] = useState('1');
+    const {
+        sessionLength, setSessionLength,
+        increment, setIncrement,
+        endTimeHour, setEndTimeHour,
+        endTimeMinute, setEndTimeMinute
+    } = useSessionStore()
+
+    const [originalEndTimeHour, setOriginalEndTimeHour] = useState(endTimeHour);
+    const [originalEndTimeMinute, setOriginalEndTimeMinute] = useState(endTimeMinute);
+    const [originalSessionLength, setOriginalSessionLength] = useState(sessionLength.toString());
+    const [originalIncrement, setOriginalIncrement] = useState(increment.toString());
 
     useFocusEffect(
         React.useCallback(() => {
-            loadSettings();
+            setOriginalSessionLength(sessionLength);
+            setOriginalIncrement(increment);
+            setOriginalEndTimeHour(endTimeHour);
+            setOriginalEndTimeMinute(endTimeMinute);
         }, [])
     );
 
-    const loadSettings = async () => {
-        try {
-            const savedSessionLength = await AsyncStorage.getItem('sessionLength');
-            const savedIncrement = await AsyncStorage.getItem('increment');
-            const savedEndTime = await AsyncStorage.getItem('endTime');
-            if (savedSessionLength !== null) {
-                setSessionLength(savedSessionLength);
-                setOriginalSessionLength(savedSessionLength);
-            }
-            if (savedIncrement !== null) {
-                setIncrement(savedIncrement);
-                setOriginalIncrement(savedIncrement);
-            }
-            if (savedEndTime !== null) {
-                const parsedEndTime = new Date(savedEndTime);
-                setEndTime(parsedEndTime);
-                setOriginalEndTime(parsedEndTime);
-            }
-            console.log('Settings loaded successfully');
-        } catch (error) {
-            console.error('Error loading settings:', error);
-        }
-    };
+
 
     const handleSave = async () => {
         try {
-            await AsyncStorage.setItem('sessionLength', sessionLength);
-            await AsyncStorage.setItem('increment', increment);
-            await AsyncStorage.setItem('endTime', endTime.toISOString());
             setOriginalSessionLength(sessionLength);
             setOriginalIncrement(increment);
-            setOriginalEndTime(endTime);
+            setOriginalEndTimeHour(endTimeHour);
+            setOriginalEndTimeMinute(endTimeMinute);
 
             // Schedule notification with new end time
-            const notificationTime = await scheduleNotification(sessionLength, endTime);
+            const notificationTime = await scheduleNotification(sessionLength, endTimeHour, endTimeMinute);
             alert(`Settings saved successfully! Next notification scheduled for ${notificationTime.toLocaleTimeString()}`);
         } catch (error) {
             console.error('Error saving settings:', error);
@@ -64,7 +48,8 @@ export default function Settings() {
     const handleCancel = () => {
         setSessionLength(originalSessionLength);
         setIncrement(originalIncrement);
-        setEndTime(originalEndTime);
+        setEndTimeHour(originalEndTimeHour);
+        setEndTimeMinute(originalEndTimeMinute);
     };
 
     return (
@@ -95,13 +80,16 @@ export default function Settings() {
                 <Text style={styles.sectionTitle}>End Time Settings</Text>
                 <Text style={styles.label}>Daily End Time</Text>
                 <DateTimePicker
-                    value={endTime}
+                    value={new Date(new Date().setHours(endTimeHour, endTimeMinute))}
                     mode="time"
                     is24Hour={true}
                     display="spinner"
                     onChange={(event, selectedTime) => {
                         if (selectedTime) {
-                            setEndTime(selectedTime);
+                            setEndTimeHour(selectedTime.getHours());
+                            setEndTimeMinute(selectedTime.getMinutes());
+
+                            console.log('Setting end times to:', selectedTime.getHours(), selectedTime.getMinutes());
                         }
                     }}
                 />
